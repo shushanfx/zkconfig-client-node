@@ -5,3 +5,5 @@ class PropertiesParser extends Parser{
         
     }
 }
+
+module.exports = exports = PropertiesParser;
