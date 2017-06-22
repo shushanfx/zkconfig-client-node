@@ -19,34 +19,61 @@ class Client extends events.EventEmitter {
 		this.scheme = this.options.scheme || "digest";
 		this.servers = servers;
 		this.isConnected = false;
-		this.isShutdown = false;
+		this.isShutdown = false
 	}
-	init() {
+	connect() {
 		this.client = zookeeper.createClient(this.servers, this.options);
 		this._bindEvent();
-		this.connect();
+		this._connect();
+	}
+	auth() {
+		if (this.username) {
+			this.client.addAuthInfo(this.scheme,
+				new Buffer([this.username, this.password].join(":")));
+		}
+	}
+	close() {
+		this.isShutdown = true;
+		if (this.client != null) {
+			this.client.close();
+			this.client = null;
+		}
 	}
 	_getContent() {
 		var me = this;
 		if (this.path && this.client) {
-			this.client.getData(this.path, function (err, data, stat) {
-				me._getContent();
+			this.client.getData(this.path, function (event) {
+				if (event) {
+					switch (event.type) {
+						case zookeeper.Event.NODE_DATA_CHANGE:
+							me._getContent();
+							break;
+						case zookeeper.Event.NODE_DELETE:
+							me.emit(Client.EVENT_ERROR, new Error("Data has removed"));
+							break;
+					}
+				}
 			}, function (err, data, stat) {
 				if (err) {
-					console.error("Can not read ");
 					me.emit(Client.EVENT_ERROR, err);
 				}
 				else {
 					var content = data.toString("UTF8");
 					var parser = me.options.parser;
 					if (!parser) {
-						var Config = require("./config/properties.js");
-						parser = new Config();
+						var Parser = require("./parser/PropertiesParser.js");
+						parser = new Parser();
 						me.options.parser = parser;
 					}
-					parser.parse(content);
-					me.config = parser;
-					me.emit(Client.EVENT_DATA, parser, me);
+					parser.parse(content, (err, config) => {
+						if (err) {
+							me.emit(Client.EVENT_ERROR, err);
+						}
+						else {
+							me.config = config;
+							me.emit(Client.EVENT_DATA, config, me);
+						}
+					});
 				}
 			});
 		}
@@ -63,32 +90,19 @@ class Client extends events.EventEmitter {
 			}
 			else if (state === zookeeper.State.DISCONNECTED
 				|| state === zookeeper.State.EXPIRED) {
-				me.reconnect();
+				me._connect();
 			}
 		});
 		this.client.on("disconnected", function () {
-			me.reconnect();
+			me._connect();
 		});
 		this.client.on("expired", function () {
-			me.reconnect();
+			me._connect();
 		});
 	}
-	auth() {
-		if (this.username) {
-			this.client.addAuthInfo(this.scheme,
-				new Buffer([this.username, this.password].join(":")));
-		}
-	}
-	connect() {
+	_connect() {
 		if (!this.isShutdown) {
 			this.client.connect();
-		}
-	}
-	close() {
-		this.isShutdown = true;
-		if (this.client != null) {
-			this.client.close();
-			this.client = null;
 		}
 	}
 	_notifyMonitor() {
@@ -99,17 +113,17 @@ class Client extends events.EventEmitter {
 				ip: ip.address(),
 				connectedTime: Date.now()
 			}
-			this.client.create(this.join(this.monitorPath, obj.id),
+			this.client.create(this._join(this.monitorPath, obj.id),
 				new Buffer(JSON.stringify(obj)),
 				zookeeper.CreateMode.EPHEMERAL,
 				function (err, path) {
 					if (err) {
-						console.error("Fail to regiester monitor path: " + path);
+						me.emit(Client.EVENT_ERROR, new Error("Fail to regiester monitor path: " + path));
 					}
 				});
 		}
 	}
-	join() {
+	_join() {
 		var p = "";
 		for (let i = 0; i < arguments.length; i++) {
 			if (arguments[i] && typeof arguments[i] === "string") {

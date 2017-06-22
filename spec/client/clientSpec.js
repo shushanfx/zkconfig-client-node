@@ -14,9 +14,9 @@ describe("I have a dream.", function(){
 			callback();
 		});
 		client.on("data", function(data){
-			client = data;	
+			config = data;	
 		});
-		client.init();
+		client.connect();
 	});
 	it("Yes", function(callback){
 		if(!config){
