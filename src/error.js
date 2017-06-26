@@ -8,7 +8,7 @@ const ERROR_TYPE = {
 
 class ZKConfigError extends Error {
     constructor(err, type) {
-        super(err.msg);
+        super(err.message);
         this.err = err;
         this.type = type;
     }

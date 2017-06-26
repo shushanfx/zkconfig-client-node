@@ -1,29 +1,29 @@
 {
-  "name": "zkconfig-client-node",
-  "version": "1.0.0",
-  "description": "A client to connect zk config by nodeJS.",
-  "main": "index.js",
-  "scripts": {
-    "test": "jasmine"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/shushanfx/zkconfig-client-node.git"
-  },
-  "keywords": [
-    "zookeeper",
-    "config"
-  ],
-  "author": "shushanfx",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/shushanfx/zkconfig-client-node/issues"
-  },
-  "homepage": "https://github.com/shushanfx/zkconfig-client-node#readme",
-  "dependencies": {
-    "ip": "^1.1.5",
-    "merge": "^1.2.0",
-    "node-zookeeper-client": "^0.2.2",
-    "uuid": "^3.1.0"
-  }
+    "name": "zkconfig-client-node",
+    "version": "1.0.1",
+    "description": "A client to connect zk config by nodeJS.",
+    "main": "index.js",
+    "scripts": {
+        "test": "jasmine"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shushanfx/zkconfig-client-node.git"
+    },
+    "keywords": [
+        "zookeeper",
+        "config"
+    ],
+    "author": "shushanfx",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/shushanfx/zkconfig-client-node/issues"
+    },
+    "homepage": "https://github.com/shushanfx/zkconfig-client-node#readme",
+    "dependencies": {
+        "ip": "^1.1.5",
+        "merge": "^1.2.0",
+        "node-zookeeper-client": "^0.2.2",
+        "uuid": "^3.1.0"
+    }
 }
