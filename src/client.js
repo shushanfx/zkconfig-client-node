@@ -51,7 +51,7 @@ class Client extends events.EventEmitter {
         var me = this;
         if (this.path &&
             this.client) {
-            this.client.getData(this.path, function(event) {
+            this.client.getData(this.path, function (event) {
                 if (event) {
                     if (event.type === zookeeper.Event.NODE_DELETED) {
                         me.emit(Client.EVENT_ERROR,
@@ -61,7 +61,7 @@ class Client extends events.EventEmitter {
                         me._getContent();
                     }
                 }
-            }, function(err, data, stat) {
+            }, function (err, data, stat) {
                 if (err) {
                     me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
                         ZKConfigError.ERROR_READ));
@@ -93,9 +93,11 @@ class Client extends events.EventEmitter {
     }
     _bindEvent() {
         var me = this;
-        this.client.on("state", function(state) {
+        this.client.on("state", function (state) {
             if (state === zookeeper.State.SYNC_CONNECTED) {
                 me.isConnected = true;
+                // Set the retry time to zero.
+                me.retryTimes = 0;
                 me.auth();
                 me._notifyMonitor();
                 me._getContent();
@@ -105,10 +107,10 @@ class Client extends events.EventEmitter {
                 me._connect();
             }
         });
-        this.client.on("disconnected", function() {
+        this.client.on("disconnected", function () {
             me._connect();
         });
-        this.client.on("expired", function() {
+        this.client.on("expired", function () {
             me._connect();
         });
     }
@@ -131,7 +133,7 @@ class Client extends events.EventEmitter {
             this.client.create(this._join(this.monitorPath, obj.id),
                 new Buffer(JSON.stringify(obj)),
                 zookeeper.CreateMode.EPHEMERAL,
-                function(err, path) {
+                function (err, path) {
                     if (err) {
                         me.emit(Client.EVENT_ERROR, new ZKConfigError(new Error("Fail to regiester monitor path: " + path),
                             ZKConfigError.ERROR_MONITOR));
