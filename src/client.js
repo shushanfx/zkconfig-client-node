@@ -172,7 +172,7 @@ class Client extends events.EventEmitter {
         let me = this;
         Cache.getCache(fileName, function (content) {
             if (content === null) {
-                me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
+                me.emit(Client.EVENT_ERROR, new ZKConfigError(new Error('Read cache file' + fileName + ' failed.'),
                     ZKConfigError.ERROR_CACHE_READ));
             } else {
                 me.readContent(content, false);
@@ -184,7 +184,7 @@ class Client extends events.EventEmitter {
         let fileName = path.replace(/\//g, '.');
         Cache.setCache(fileName, content, function (isSuccess) {
             if (!isSuccess) {
-                me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
+                me.emit(Client.EVENT_ERROR, new ZKConfigError(new Error('Write cache file' + fileName + ' failed.'),
                     ZKConfigError.ERROR_CACHE_WRITE));
             }
         });

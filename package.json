@@ -1,6 +1,6 @@
 {
     "name": "zkconfig-client-node",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "A client to connect zk config by nodeJS.",
     "main": "index.js",
     "scripts": {
