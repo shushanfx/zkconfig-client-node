@@ -5,6 +5,9 @@ var ip = require("ip");
 var events = require("events")
 
 var ZKConfigError = require("./error.js");
+var Cache = require('./cache');
+var ParserIndex = require('./parser');
+var DefaultParser = require('./parser/Parser');
 
 class Client extends events.EventEmitter {
     constructor(servers, options) {
@@ -16,7 +19,8 @@ class Client extends events.EventEmitter {
         this.options = merge({
             servers: servers,
             scheme: "digest",
-            maxRetryTimes: 10
+            maxRetryTimes: 10,
+            connectTimeout: 10000
         }, options);
         this.path = this.options.path;
         this.monitor = !!this.options.monitor;
@@ -28,6 +32,7 @@ class Client extends events.EventEmitter {
         this.isConnected = false;
         this.isShutdown = false;
         this.retryTimes = 0;
+        this.isFirstConnect = true;
     }
     connect() {
         this.client = zookeeper.createClient(this.servers, this.options);
@@ -37,7 +42,7 @@ class Client extends events.EventEmitter {
     auth() {
         if (this.username) {
             this.client.addAuthInfo(this.scheme,
-                new Buffer([this.username, this.password].join(":")));
+                Buffer.from([this.username, this.password].join(":")));
         }
     }
     close() {
@@ -56,37 +61,20 @@ class Client extends events.EventEmitter {
                     if (event.type === zookeeper.Event.NODE_DELETED) {
                         me.emit(Client.EVENT_ERROR,
                             new ZKConfigError(new Error("Data node has been removed."),
-                                ZKConfigError.ERROR_READ))
+                                ZKConfigError.ERROR_READ));
+                        // load from cache
+                        me.loadCache();
                     } else {
                         me._getContent();
                     }
                 }
-            }, function (err, data, stat) {
+            }, function (err, data) {
                 if (err) {
                     me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
                         ZKConfigError.ERROR_READ));
                 } else {
                     var content = data.toString("UTF8");
-                    var parser = me.options.parser;
-                    if (!parser) {
-                        var Parser = require("./parser/PropertiesParser.js");
-                        parser = new Parser();
-                        me.options.parser = parser;
-                    }
-                    parser.parse(content, (err, config) => {
-                        if (err) {
-                            me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
-                                ZKConfigError.ERROR_PARSE));
-                        } else {
-                            me.config = config;
-                            try {
-                                me.emit(Client.EVENT_DATA, config, me)
-                            } catch (e) {
-                                me.emit(Client.EVENT_ERROR, new ZKConfigError(e,
-                                    ZKConfigError.ERROR_HANDLE));
-                            };
-                        }
-                    });
+                    me.readContent(content, true);
                 }
             });
         }
@@ -115,11 +103,91 @@ class Client extends events.EventEmitter {
         });
     }
     _connect() {
+        let me = this;
         if (!this.isShutdown &&
             this.retryTimes < this.options.maxRetryTimes) {
             this.retryTimes++;
+            if (this.connectTimer) {
+                clearTimeout(this.connectTimer);
+            }
             this.client.connect();
+            if (this.options.connectTimeout > 0) {
+                this.client.once("connect", function () {
+                    clearTimeout(this.connectTimer);
+                    this.connectTimer = null;
+                });
+                this.connectTimer = setTimeout(function () {
+                    me.emit(Client.EVENT_ERROR,
+                        new ZKConfigError(new Error("Fail to connect to server"), ZKConfigError.ERROR_CONNECT));
+                    // load from cache;
+                    me.loadCache();
+                    clearTimeout(this.connectTimer);
+                    this.connectTimer = null;
+                }, this.options.connectTimeout);
+            }
+
         }
+    }
+    readContent(content, flushCache) {
+        var me = this;
+        var parser = me.options.parser;
+        if (!parser) {
+            var Parser = require("./parser/PropertiesParser.js");
+            parser = new Parser();
+            me.options.parser = parser;
+        } else if (typeof parser === "string") {
+            let parserFactory = ParserIndex.get(parser);
+            if (parserFactory) {
+                parser = parserFactory(me.options);
+                me.options.parser = parser;
+            }
+        }
+        if (flushCache) {
+            me.flushCache(content);
+        }
+        if (parser && parser instanceof DefaultParser) {
+            parser.parse(content, (err, config) => {
+                if (err) {
+                    me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
+                        ZKConfigError.ERROR_PARSE));
+                } else {
+                    me.config = config;
+                    try {
+                        me.emit(Client.EVENT_DATA, config, me)
+                    } catch (e) {
+                        me.emit(Client.EVENT_ERROR, new ZKConfigError(e,
+                            ZKConfigError.ERROR_HANDLE));
+                    };
+                }
+            });
+        } else {
+            me.emit(Client.EVENT_ERROR, new ZKConfigError(new Error('No parser.'),
+                ZKConfigError.ERROR_PARSE));
+        }
+
+    }
+    loadCache(callback) {
+        let path = this.path;
+        let fileName = path.replace(/\//g, '.');
+        let me = this;
+        Cache.getCache(fileName, function (content) {
+            if (content === null) {
+                me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
+                    ZKConfigError.ERROR_CACHE_READ));
+            } else {
+                me.readContent(content, false);
+            }
+        });
+    }
+    flushCache(content) {
+        let path = this.path;
+        let fileName = path.replace(/\//g, '.');
+        Cache.setCache(fileName, content, function (isSuccess) {
+            if (!isSuccess) {
+                me.emit(Client.EVENT_ERROR, new ZKConfigError(err,
+                    ZKConfigError.ERROR_CACHE_WRITE));
+            }
+        });
     }
     _notifyMonitor() {
         var me = this;
@@ -131,7 +199,7 @@ class Client extends events.EventEmitter {
                 connectedTime: Date.now()
             }
             this.client.create(this._join(this.monitorPath, obj.id),
-                new Buffer(JSON.stringify(obj)),
+                Buffer.from(JSON.stringify(obj)),
                 zookeeper.CreateMode.EPHEMERAL,
                 function (err, path) {
                     if (err) {

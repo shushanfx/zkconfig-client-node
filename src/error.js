@@ -4,6 +4,8 @@ const ERROR_TYPE = {
     ERROR_PARSE: 4, // when parse with error, parse the content to a config instance.
     ERROR_MONITOR: 8, // monitor error, when upload the monitor information.
     ERROR_HANDLE: 16, // when handle the config instance with error.
+    ERROR_CACHE_WRITE: 32, // error in write cache to file.
+    ERROR_CACHE_READ: 64, // error in read cache.
 }
 
 class ZKConfigError extends Error {
