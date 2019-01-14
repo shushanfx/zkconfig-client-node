@@ -110,21 +110,23 @@ class Client extends events.EventEmitter {
             if (this.connectTimer) {
                 clearTimeout(this.connectTimer);
             }
-            this.client.connect();
             if (this.options.connectTimeout > 0) {
-                this.client.once("connect", function () {
-                    clearTimeout(this.connectTimer);
-                    this.connectTimer = null;
+                this.client.once("state", function (state) {
+                    if (state === zookeeper.State.SYNC_CONNECTED) {
+                        clearTimeout(me.connectTimer);
+                        me.connectTimer = null;
+                    }
                 });
                 this.connectTimer = setTimeout(function () {
                     me.emit(Client.EVENT_ERROR,
                         new ZKConfigError(new Error("Fail to connect to server"), ZKConfigError.ERROR_CONNECT));
                     // load from cache;
                     me.loadCache();
-                    clearTimeout(this.connectTimer);
-                    this.connectTimer = null;
+                    clearTimeout(me.connectTimer);
+                    me.connectTimer = null;
                 }, this.options.connectTimeout);
             }
+            this.client.connect();
 
         }
     }
